@@ -1,0 +1,102 @@
+{
+  "name": "@y23f5/dshplugin-rabbithole",
+  "version": "0.1.0-dev.5",
+  "private": true,
+  "type": "module",
+  "description": "RabbitHole branching workspace for DeepSeek Harness",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Y23F5/DSHPlugin-RabbitHole.git"
+  },
+  "workspaces": [
+    "packages/rabbithole"
+  ],
+  "main": "./src/host/plugin.mjs",
+  "exports": {
+    ".": "./src/host/plugin.mjs",
+    "./client": "./dist/client.js",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "DSHPlugin-RabbitHole": "./bin/DSHPlugin-RabbitHole.mjs"
+  },
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-chat"
+      ],
+      "platform": "web"
+    }
+  },
+  "files": [
+    "bin",
+    "src",
+    "dist",
+    "packages/rabbithole/src/core",
+    "packages/rabbithole/src/node/bridge/project-tools.js",
+    "packages/rabbithole/src/node/harness/dsh-events.mjs",
+    "packages/rabbithole/src/node/mcp/pdf/ingest.js",
+    "packages/rabbithole/web/dist",
+    "packages/rabbithole/package.json",
+    "packages/rabbithole/LICENSE",
+    "packages/rabbithole/THIRD_PARTY_NOTICES.md",
+    "cordis.patch.yml",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "node bin/DSHPlugin-RabbitHole.mjs",
+    "workspace": "node scripts/workspace.mjs",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "npm run build"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.4",
+    "@deepseek-ai/dsh-agent": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-agent-loop": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-host-webserver": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-llm": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-session": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-session-projection": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-system-prompt": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-tools": "^0.1.7-rc.2",
+    "esbuild": "0.28.1",
+    "lightningcss": "^1.33.0",
+    "react": "18.3.1"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.0.4",
+    "@deepseek-ai/dsh-agent": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-client-ui-chat": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-client-ui-layout": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-client-ui-sidebar": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-host-webserver": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-llm": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-session": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-system-prompt": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-tools": "0.1.7-rc.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-atomic-write": "0.1.7-rc.2",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "marked": "^15.0.7",
+    "pdfjs-dist": "^4.0.379"
+  },
+  "optionalDependencies": {
+    "@napi-rs/canvas": "^1.0.2"
+  }
+}

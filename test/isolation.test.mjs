@@ -1,0 +1,60 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { dataDirectory, validatePort } from '../src/shared/identity.mjs';
+import { startSurface } from '../src/host/surface.mjs';
+import { saveSourceCanvas } from '../src/host/source.mjs';
+
+test('identity uses independent defaults and accepts configurable ports and directory names', () => {
+  const dir = dataDirectory({ env: { LOCALAPPDATA: os.tmpdir(), RABBITHOLE_DIR: 'old-library', DSH_HOME: 'old-profile', DAILYDESK_READING_PORT: '4323' } });
+  assert.ok(dir.endsWith(path.join('DSHPlugin-RabbitHole', 'development')));
+  assert.equal(validatePort(4323), 4323); assert.equal(validatePort(41414), 41414);
+  assert.equal(dataDirectory({ directory: path.join(os.tmpdir(), 'DailyDesk', 'library') }), path.join(os.tmpdir(), 'DailyDesk', 'library'));
+  assert.throws(() => validatePort(-1)); assert.throws(() => validatePort(65536));
+});
+
+test('authenticated surface saves Markdown/Canvas, excludes old data and releases ownership', async t => {
+  const parent = await fs.mkdtemp(path.join(os.tmpdir(), 'dshplugin-rabbithole-test-'));
+  // Only this test-created root is removed; never accept a configured library here.
+  const directory = path.join(parent, 'new');
+  let surface = await startSurface({ port: 0, directory });
+  t.after(async () => { await surface.close(); await fs.rm(parent, { recursive: true, force: true }); });
+  assert.equal((await fetch(`${surface.origin}/api/library/projects`)).status, 401);
+  const ticket = surface.issueTicket();
+  const connected = await fetch(`${surface.origin}/connect?ticket=${ticket}`, { redirect: 'manual' });
+  assert.equal(connected.status, 303);
+  const cookie = connected.headers.get('set-cookie').split(';')[0];
+  const headers = { Cookie: cookie };
+  assert.equal((await fetch(`${surface.origin}/connect?ticket=${ticket}`, { redirect: 'manual' })).status, 401);
+  assert.equal((await fetch(`${surface.origin}/api/library`, { headers: { ...headers, Origin: 'https://example.com' } })).status, 403);
+  assert.deepEqual(await (await fetch(`${surface.origin}/api/library`, { headers })).json(), []);
+  const saved = await saveSourceCanvas(surface.library, { sessionId: 'fixture-session', messageId: 'fixture-answer', sourceEventSeq: 1, markdown: '# 独立画布\n\nUTF-8 中文。', hash: 'test', capturedAt: new Date().toISOString() });
+  assert.equal((await surface.library.load(saved.hole.hole_id)).hole.nodes[0].markdown, '# 独立画布\n\nUTF-8 中文。');
+  assert.ok((await fs.readdir(surface.library.root)).includes(`${saved.hole.hole_id}.canvas`));
+  await assert.rejects(() => startSurface({ port: 0, directory }), /运行锁/);
+  const foreign = path.join(parent, 'foreign');
+  await fs.mkdir(foreign); await fs.writeFile(path.join(foreign, 'projects.json'), 'keep');
+  await assert.rejects(() => startSurface({ port: 0, directory: foreign }), /已有其它资料/);
+  assert.equal(await fs.readFile(path.join(foreign, 'projects.json'), 'utf8'), 'keep');
+  await surface.close();
+  surface = await startSurface({ port: 0, directory });
+  assert.equal((await surface.library.load(saved.hole.hole_id)).revision, saved.revision);
+  const nextDirectory = path.join(parent, 'DailyDesk', 'another-library');
+  await surface.library.setRoot(nextDirectory);
+  assert.equal((await surface.library.list()).length, 0);
+  const project = await surface.library.createProject({ name: '切换后的项目', roots: [] });
+  await surface.close();
+  surface = await startSurface({ port: 0, directory });
+  assert.equal(surface.library.root, await fs.realpath(nextDirectory));
+  assert.ok((await surface.library.listProjects()).some(row => row.id === project.id));
+  await surface.library.setRoot(path.join(directory, 'library'));
+  assert.equal((await surface.library.load(saved.hole.hole_id)).revision, saved.revision);
+  await surface.close();
+  const exitedPid = execFileSync(process.execPath, ['-e', 'process.stdout.write(String(process.pid))'], { encoding: 'utf8' });
+  await fs.writeFile(path.join(directory, 'library', '.dshplugin-rabbithole.lock'), exitedPid + '\n');
+  surface = await startSurface({ port: 0, directory });
+  assert.equal((await surface.library.load(saved.hole.hole_id)).revision, saved.revision);
+});

@@ -1,0 +1,50 @@
+{
+  "name": "@y23f5/rabbithole-surface",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "An infinite canvas for learning. Start from a document, select text, ask, and the answer branches out as a child document. Recurse forever.",
+  "license": "MIT",
+  "author": "Shlok Khemani",
+  "homepage": "https://rabbithole.ing",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Y23F5/DSHPlugin-RabbitHole.git"
+  },
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "keywords": [
+    "learning",
+    "canvas",
+    "branch-reading"
+  ],
+  "files": [
+    "dist",
+    "src",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "dependencies": {
+    "@mermaid-js/tiny": "11.16.0",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "dompurify": "^3.4.11",
+    "highlight.js": "^11.11.1",
+    "katex": "^0.17.0",
+    "marked": "^15.0.7",
+    "pdfjs-dist": "^4.0.379"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "optionalDependencies": {
+    "@napi-rs/canvas": "^1.0.2"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.1",
+    "terser": "^5.51.2"
+  },
+  "overrides": {
+    "fast-uri": "3.1.3"
+  }
+}

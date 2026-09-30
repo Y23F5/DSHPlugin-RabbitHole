@@ -1,0 +1,60 @@
+import { projectNode } from "../../core/hole/node.js";
+import { Run } from "../../core/hole/run.js";
+import { randomId } from "../../core/utils.js";
+import { truncate } from "../../core/hole/lens.js";
+
+export const WEB_ROOT_QUESTION = "web_root_question";
+
+/** @param {import("../../core/contracts/engine.js").HoleNode | undefined} node */
+export function rawPdfExtension(node) {
+  return /** @type {Record<string, any> | null} */ (node?.source || node?.extensions?.pdf || null);
+}
+
+/** @param {import("../../core/contracts/engine.js").HoleNode | undefined} node */
+export function rawOrigin(node) {
+  return /** @type {Record<string, any>} */ (node?.origin || {});
+}
+
+export function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error || new Error("Image could not be read."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/** Narrow, browser-free branch wiring: GenerationEvent -> Run -> DocEvent. */
+export async function* generationDocEvents(generation, run, { nodeId, progressFields = {}, answeredFields = {}, beforeComplete = null, complete = null }) {
+  for await (const event of generation) {
+    const progress = run.accept(event, { nodeId, progressFields });
+    if (progress) yield progress;
+  }
+  beforeComplete?.(run);
+  const fields = typeof answeredFields === "function" ? answeredFields() : answeredFields;
+  const context = { nodeId, answeredFields: fields };
+  yield complete ? complete(run, context) : run.complete(context);
+}
+
+export function rootAnsweredFields(node) {
+  if (!node) return {};
+  const { id: _id, ...fields } = projectNode(node, "wire");
+  return { ...fields, parent_id: null, read: true };
+}
+
+export function branchAnsweredFields(node) {
+  if (!node) return {};
+  const { id: _id, ...fields } = projectNode(node, "wire");
+  return { ...fields, read: false };
+}
+
+export function defaultRunId() { return randomId("generation"); }
+export function titleFromMarkdown(markdown) {
+  const match = /^#\s+(.+)$/m.exec(String(markdown || ""));
+  return match ? truncate(match[1].trim(), 80) : "";
+}
+export function isAuthError(error) {
+  return error?.status === 401 || error?.status === 403 || error?.code === "401" || error?.code === "403" || error?.code === "missing_key";
+}
+export function resetMarkdownForRun(node) { return node?.markdown && node.status === "pending" ? String(node.markdown) : ""; }
+export function rootQuestionForNode(node) { return String(node?.origin?.[WEB_ROOT_QUESTION] || "").trim(); }

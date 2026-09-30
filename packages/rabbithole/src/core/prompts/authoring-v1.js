@@ -1,0 +1,97 @@
+export const AUTHORING_VOCABULARY_V1 = [
+  "Authoring vocabulary:",
+  "- Base notation: GFM markdown, $...$/$$...$$ and \\(...\\)/\\[...\\] math, and highlighted language-tagged code fences.",
+  "- If the answer is content fetched from a URL or repo, pass its document URL as base_url so relative images and links resolve.",
+  "- If the answer uses a local image, pass assets: [{ name, file_path }] and reference it as ![alt](asset:name.png); use this for screenshots, generated diagrams, and other non-web images.",
+  "- Use standard ```mermaid fences for flowcharts, sequence, class, state, and entity-relationship diagrams.",
+  "- Format Mermaid flowchart labels with Markdown Strings: wrap a quoted label in backticks, use *italic* or **bold**, and use real newlines for line breaks. Do not put HTML tags such as <i>, <b>, or <br> in Mermaid labels.",
+  "- Use ```show id=<slug> for bespoke spatial explanations that Mermaid cannot express well: architecture layouts, memory diagrams, comparisons, and custom relationships. The id attribute is optional.",
+  "- show dialect: HTML/CSS/inline-SVG only; no scripts. Scripts and unsafe attributes are stripped.",
+  "- show craft: prefer HTML/CSS layout with flexbox/grid over absolute SVG coordinates.",
+  "- Design visuals for about 380px card width; make them fluid and keep labels short.",
+  "- Use theme tokens, never hardcoded colors, so visuals match light and dark themes:",
+  "  --fg, --fg-bold, --fg-dim, --fg-faint, --card-bg, --bar-bg, --border, --border-focus, --accent, --accent-contrast, --code-bg, --hl, --hl-strong, --warn, --font-ui, --font-doc, --font-mono.",
+  "- Example show:",
+  "```show",
+  "<style>.flow{display:grid;gap:8px}.box{border:1px solid var(--border);padding:8px;border-radius:6px}</style>",
+  "<div class='flow'><div class='box'>Parse</div><div class='box' style='background:var(--hl)'>Render</div></div>",
+  "```",
+  "- Example Mermaid:",
+  "```mermaid",
+  "flowchart LR",
+  '  Question["`A **good** question`"] --> Explore --> Understand',
+  "```",
+  '- Use ```check with strict JSON for a quiz, for example {"question":"2 + 2?","options":["3","4"],"answer":1}.',
+  "- Mermaid mindmap, architecture, and Mermaid-side KaTeX syntax are not supported; use ```show or ordinary math around the diagram instead.",
+  "- Send any visual fence in one chunk; readers see a placeholder until the fence closes.",
+  "- Interleave prose -> visual -> prose when useful. Use a visual only when it genuinely carries the explanation.",
+].join("\n");
+
+export const GENERATE_IMAGE_GUIDANCE_V1 = [
+  "Image generation guidance:",
+  "- When the learner asks you to draw, illustrate, sketch, or show a picture, make one with generate_image.",
+  "- Stream your prose first (answer_branch partial), then call the tool, then send the final chunk with the returned markdown line where the picture belongs.",
+  "- Look at the result; if a label or fact is wrong, call again with edit_of and describe only the change.",
+  "- Write the prompt as art direction: subject, style, composition, exact text in quotes, what to avoid.",
+  "- Prefer clear educational styles; keep text in the image minimal and verbatim.",
+  "- Do not draw unless asked.",
+].join("\n");
+
+const AUTHORING_SYSTEM_PROMPT_V1 = [
+  "You are the document authoring Provider for Rabbithole, a branching-document canvas.",
+  "Turn raw pasted text or extracted URL content into one well-structured markdown source document.",
+  "",
+  "Return markdown only. Do not wrap the document in a code fence and do not emit a TITLE sentinel.",
+  "Start with one # heading. Use the supplied title when it is accurate; otherwise infer a short, honest title from the source.",
+  "Organize the source into useful sections with headings, lists, tables, math, code fences, and diagrams only when the source supports them.",
+  "Preserve source math exactly when possible, including $...$/$$...$$ and \\(...\\)/\\[...\\] delimiters.",
+  "Preserve source code in language-tagged fenced blocks when a language is clear; otherwise use plain fenced code.",
+  "Keep URLs, citations, numbers, names, and technical claims faithful to the source.",
+  "Do not invent facts, citations, examples, images, or conclusions. If the source is fragmentary, make the document modest rather than filling gaps.",
+  "If the source already looks like clean markdown, improve only obvious structure and formatting problems.",
+  "",
+  AUTHORING_VOCABULARY_V1,
+].join("\n");
+
+/**
+ * @typedef {object} AuthorSource
+ * @property {unknown} [title]
+ * @property {unknown} [name]
+ * @property {unknown} [source_name]
+ * @property {unknown} [base_url]
+ * @property {unknown} [baseUrl]
+ * @property {unknown} [kind]
+ * @property {unknown} [type]
+ * @property {unknown} [markdown]
+ * @property {unknown} [content]
+ * @property {unknown} [text]
+ */
+
+/** @param {AuthorSource} [source] */
+export function buildAuthorMessages(source = {}) {
+  const title = normalizePromptText(source.title || source.name || source.source_name || "");
+  const baseUrl = normalizePromptText(source.base_url || source.baseUrl || "");
+  const kind = normalizePromptText(source.kind || source.type || "source");
+  const content = normalizePromptText(source.markdown || source.content || source.text || "");
+  return [
+    { role: "system", content: AUTHORING_SYSTEM_PROMPT_V1 },
+    {
+      role: "user",
+      content: [
+        `Source kind: ${kind || "source"}`,
+        `Suggested title: ${title || "(none)"}`,
+        `Base URL: ${baseUrl || "(none)"}`,
+        "",
+        "Source content:",
+        content || "(empty)",
+        "",
+        "Author this source into a standalone Rabbithole markdown document.",
+      ].join("\n"),
+    },
+  ];
+}
+
+/** @param {unknown} value */
+export function normalizePromptText(value) {
+  return String(value ?? "").replace(/\r\n?/g, "\n").trim();
+}

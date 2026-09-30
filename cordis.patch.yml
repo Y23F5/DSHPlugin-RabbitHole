@@ -1,0 +1,6 @@
+- insert:
+    - id: dshplugin-rabbithole
+      name: '@y23f5/dshplugin-rabbithole'
+      config:
+        port: 45232
+        profile: default

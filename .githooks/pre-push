@@ -1,0 +1,6 @@
+#!/bin/sh
+if [ "$1" != "origin" ]; then
+  echo "Push rejected: use origin for Y23F5/DSHPlugin-RabbitHole." >&2
+  exit 1
+fi
+node scripts/verify-private-remote.mjs
