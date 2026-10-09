@@ -66,7 +66,7 @@ export async function startSurface(options = {}) {
       const authenticated = (req.headers.cookie || '').split(';').some(item => item.trim() === `${cookieName}=${session}`);
       if (!authenticated) return reply(res, 401, { error: '请通过 DSHPlugin-RabbitHole 启动链接打开。' });
       if (closing) return reply(res, 503, { error: 'Service stopping' });
-      if (url.pathname === '/api/plugin/status') return reply(res, 200, { service: SERVICE_NAME, version: VERSION, instance, pid: process.pid, origin, dataDirectory: directory, mode: options.hosted ? 'hosted' : 'development', generation: !!runner });
+      if (url.pathname === '/api/plugin/status') return reply(res, 200, { service: SERVICE_NAME, version: VERSION, instance, pid: process.pid, origin, parentOrigin, dataDirectory: directory, mode: options.hosted ? 'hosted' : 'development', generation: !!runner });
       if (await handleLibrary(req, res, url)) return;
       if (await handleHarness(req, res, url)) return;
       if (url.pathname.startsWith('/api/')) return reply(res, 404, { error: '接口不存在。' });

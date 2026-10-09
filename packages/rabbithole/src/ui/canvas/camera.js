@@ -96,12 +96,11 @@ export function zoomTo(sx, sy, next) {
 
 // The camera pose that frames a card at reading scale.
 export function diveTargetView(node) {
-  const vw = viewport.clientWidth,
-    vh = viewport.clientHeight;
-  const ts = Math.min(1, Math.max(0.75, Math.min((vw - 120) / node.size.w, (vh - 120) / effH(node))));
+  const rect = visibleCanvasRect(), vw = rect.width, vh = rect.height;
+  const ts = Math.min(1, Math.max(MIN_SCALE, Math.min((vw - 40) / node.size.w, (vh - 60) / effH(node))));
   return {
-    x: vw / 2 - (node.position.x + node.size.w / 2) * ts,
-    y: vh / 2 - (node.position.y + effH(node) / 2) * ts,
+    x: rect.left + vw / 2 - (node.position.x + node.size.w / 2) * ts,
+    y: rect.top + vh / 2 - (node.position.y + effH(node) / 2) * ts,
     scale: ts,
   };
 }

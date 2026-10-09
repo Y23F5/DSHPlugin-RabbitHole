@@ -44,9 +44,6 @@ import {
 
 const LAST_HOLE_KEY = "rh-last-hole";
 const RAIL_OPEN_KEY = "dshplugin-rabbithole-rail-open";
-const GITHUB_REPO_API_URL = "https://api.github.com/repos/shlokkhemani/rabbithole";
-const GITHUB_STARS_CACHE_KEY = "rh-github-stars-v1";
-const GITHUB_STARS_CACHE_TTL = 6 * 60 * 60 * 1000;
 
 let store;
 let currentHost = null;
@@ -65,7 +62,6 @@ let workspaceRuntimePromise = null;
 let loadedWorkspaceRuntime = null;
 let workspaceWarmScheduled = false;
 let projectMenuPopover = null;
-let githubStarsPromise = null;
 let composerPath = "";
 let lastHoleCount = 0;
 let railSummaries = null;
@@ -152,6 +148,11 @@ async function boot() {
   await summariesPromise;
   await renderRail({ refresh: false });
   if (initial) {
+    const inherited = initial.nodes?.find(node => node.id === (queuedNode || 'question'))?.extensions?.dshplugin;
+    if (inherited?.execution?.provider && inherited.execution?.model) {
+      const next = { ...settingsForProvider('dsh_custom', loadSettings()), dsh_provider: inherited.execution.provider, model: inherited.execution.model, reasoning: inherited.execution.reasoningEffort || '', dsh_mode: 'hosted' };
+      saveSettings(next); markGenerationSetupComplete(next);
+    }
     await startHole(initial, { replace: true });
     const nodeId = queuedNode;
     if (nodeId && currentHost?.state.nodes.get(nodeId)?.extensions?.dshplugin?.queued && pluginStatus.generation) {
@@ -193,7 +194,7 @@ async function boot() {
 
 function renderShell() {
   toastNotice = mountWebShell();
-  railOpen = safeLocalStorageGet(RAIL_OPEN_KEY) !== 'false';
+  railOpen = safeLocalStorageGet(RAIL_OPEN_KEY) !== 'false' && !(new URLSearchParams(location.search).has('dshplugin_run') && window.innerWidth < 900);
   applyRailState();
   syncRailPosition();
   requestAnimationFrame(syncRailPosition);
@@ -217,25 +218,12 @@ async function chooseInitialHole(summariesPromise = store.listHoles()) {
 }
 
 function initAppChrome() {
-  const desktop = /** @type {any} */ (window).dailyDeskReading;
-  if (desktop) {
-    const home = document.createElement('button');
-    home.textContent = '← 桌面'; home.title = '返回 DailyDesk，阅读窗口保留';
-    home.setAttribute('aria-label', '返回 DailyDesk 桌面');
-    home.style.cssText = 'position:fixed;left:16px;bottom:16px;z-index:80;border:1px solid #8885;border-radius:10px;padding:8px 13px;background:var(--bg,#202326);color:var(--text,#eee);font:12px system-ui;cursor:pointer';
-    home.addEventListener('click', () => void desktop.home());
-    document.body.append(home);
-    desktop.onFlush(async () => {
-      if (currentHost?.abortByNode.size) return { pending: true, error: '回答仍在生成。请等待完成，或在阅读界面停止生成后退出。' };
-      await (await loadCanvasRuntime()).flushPendingSaves();
-      await currentUi?.flush();
-      await currentHost?.flushSave();
-      await Promise.all([...store.saves.values()]);
-      return { pending: Object.values(store.metadata).some((entry) => entry.pending), error: store.state.phase === 'conflict' ? '存在文件修改冲突，请在“文件与版本”中处理后退出。' : undefined };
-    });
-  }
   const rail = document.getElementById("web-rail");
   window.addEventListener("resize", syncRailPosition, { passive: true });
+  window.addEventListener('resize', () => {
+    const node = currentHost?.state.nodes.get('question');
+    if (node?.extensions?.dshplugin?.source) currentCanvasRuntime()?.focusDshBranch('question');
+  }, { passive: true });
   window.addEventListener("popstate", () => { void openHistoryLocation(); });
   // Pairing often lands in a second tab (the terminal link opens a fresh one).
   // Settings are shared through localStorage, so let a tab that is sitting on
@@ -367,49 +355,6 @@ function openProjectMenu() {
     initialFocus: surface.querySelector('[role="menuitem"]'),
     onClose: closeProjectMenu,
   });
-  void loadGithubStars();
-}
-
-async function loadGithubStars() {
-  const cached = readGithubStarsCache();
-  if (cached) {
-    renderGithubStars(cached.count);
-    if (systemClock.now() - cached.updatedAt < GITHUB_STARS_CACHE_TTL) return;
-  }
-  if (githubStarsPromise) return githubStarsPromise;
-  githubStarsPromise = fetch(GITHUB_REPO_API_URL, {
-    credentials: "omit",
-    referrerPolicy: "no-referrer",
-  }).then(async (response) => {
-    if (!response.ok) throw new Error(`GitHub returned ${response.status}`);
-    const count = Number((await response.json())?.stargazers_count);
-    if (!Number.isFinite(count) || count < 0) throw new Error("GitHub returned an invalid star count");
-    const value = { count: Math.floor(count), updatedAt: systemClock.now() };
-    safeLocalStorageSet(GITHUB_STARS_CACHE_KEY, JSON.stringify(value));
-    renderGithubStars(value.count);
-  }).catch(() => {}).finally(() => {
-    githubStarsPromise = null;
-  });
-  return githubStarsPromise;
-}
-
-function readGithubStarsCache() {
-  try {
-    const value = JSON.parse(safeLocalStorageGet(GITHUB_STARS_CACHE_KEY));
-    if (!Number.isFinite(value?.count) || !Number.isFinite(value?.updatedAt)) return null;
-    return value;
-  } catch {
-    return null;
-  }
-}
-
-function renderGithubStars(count) {
-  const target = document.getElementById("project-github-stars");
-  if (!target) return;
-  const compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(count);
-  target.innerHTML = `<span aria-hidden="true">★</span> ${escapeHtml(compact)}`;
-  target.setAttribute("aria-label", `${count.toLocaleString("en-US")} GitHub stars`);
-  target.title = `${count.toLocaleString("en-US")} GitHub stars`;
 }
 
 function closeProjectMenu(settings) {
@@ -847,6 +792,31 @@ async function maybeAuthorDocument({
   } });
 }
 
+function mountDshSource(hole) {
+  const source = hole.nodes?.find(node => node.id === hole.root_id)?.extensions?.dshplugin?.source;
+  document.getElementById('t-dsh-source')?.remove();
+  document.getElementById('t-dsh-source-question')?.remove();
+  const parentOrigin = window.__dshpluginStatus?.parentOrigin;
+  if (source) {
+    const button = document.createElement('button'); button.id = 't-dsh-source'; button.className = 'tbtn';
+    button.type = 'button'; button.textContent = '返回 DSH 来源'; button.title = source.quote || '返回来源会话和回答';
+    button.addEventListener('click', () => {
+      if (parentOrigin && window.parent !== window) window.parent.postMessage({ type: 'dshplugin/source', source }, parentOrigin);
+      else showToast({ message: '请从 DSH 侧栏打开此画布，然后返回来源会话。' });
+    });
+    document.getElementById('tb-app')?.appendChild(button);
+    if (source.question) {
+      const question = document.createElement('details'); question.id = 't-dsh-source-question';
+      question.className = 'dd-harness-event';
+      const title = document.createElement('summary'); title.textContent = '来源问题';
+      const text = document.createElement('p'); text.textContent = source.question;
+      question.append(title, text);
+      document.getElementById('tb-app')?.after(question);
+    }
+  }
+  if (parentOrigin && window.parent !== window) window.parent.postMessage({ type: 'dshplugin/canvas', url: location.href, holeId: hole.hole_id, source }, parentOrigin);
+}
+
 function startHole(hole, options = {}) {
   const transition = holeTransition.then(() => mountHole(hole, options));
   holeTransition = transition.catch(() => {});
@@ -912,6 +882,7 @@ async function mountHole(hole, { replace = false } = {}) {
     projectId: projectOfHole(hole),
   });
   currentHost = host;
+  mountDshSource(hole);
 
   try {
     const hydration = host.hydration();
@@ -926,6 +897,7 @@ async function mountHole(hole, { replace = false } = {}) {
     });
     const isNewRailItem = !railSummaries?.some((summary) => summary.hole_id === hole.hole_id);
     await renderRail({ refresh: isNewRailItem, firstHoleId: isNewRailItem ? hole.hole_id : null });
+    if (hole.nodes?.some(node => node.id === 'question' && node.extensions?.dshplugin?.source)) requestAnimationFrame(() => canvasRuntime.focusDshBranch('question'));
     host.startRootAnswer();
   } catch (error) {
     await disposeCurrentHole();

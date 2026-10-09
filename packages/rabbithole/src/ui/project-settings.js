@@ -30,6 +30,7 @@ function syncProjectChrome() {
     select.value = active; select.disabled = changing;
   }
   document.querySelectorAll('[data-current-project]').forEach(element => { element.textContent = projects.find(project => project.id === active)?.name || '个人空间'; });
+  if (window.__dshpluginStatus?.parentOrigin) window.parent.postMessage({ type: 'dshplugin/project', projectId: active }, window.__dshpluginStatus.parentOrigin);
 }
 
 export async function activateProject(id, { notify = true } = {}) {

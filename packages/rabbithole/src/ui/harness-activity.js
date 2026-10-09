@@ -16,6 +16,7 @@ const DEFAULT_LABELS = {
   "approval/request": "等待审批",
   "approval/result": "审批结果",
   "skill/activated": "启用 Skill",
+  "skill/configured": "Skill 已加入上下文",
   "file/read": "读取文件",
   "file/write": "写入文件",
   "agent/started": "启动 Agent",
@@ -112,7 +113,7 @@ export function projectHarnessRuns(events = []) {
       });
     const run = runs.get(runId);
     run.startedAt ||= eventTime(event);
-    run.sessionId ||= event.session_id || "";
+    if (event.session_id && event.session_id !== event.canvas_id) run.sessionId = event.session_id;
     if (event.type === "user/message") {
       run.question = mergeValue(run.question, event.text ?? event.delta ?? event.message ?? event.prompt);
       run.events.push({ ...event, kind: "user", label: "提问", detail: run.question });
@@ -324,6 +325,16 @@ export function renderHarnessActivity(
     details.append(summary);
     const list = document.createElement("div");
     list.className = "dd-harness-events";
+    const context = run.events.findLast(entry => entry.type === 'request/context');
+    const connection = run.events.findLast(entry => entry.type === 'run/status' && entry.provider);
+    if (context || connection) {
+      const info = document.createElement('p'); info.className = 'dd-harness-event-meta';
+      const modes = { fork: '继承父会话', resume: '继续节点会话', new: '新会话' };
+      info.textContent = [connection && `${connection.provider} · ${connection.model}`, context && modes[context.mode],
+        context?.inherited_events ? `${context.inherited_events} 条历史事件` : '',
+        context?.tools?.length ? `可用工具：${context.tools.join('、')}` : ''].filter(Boolean).join(' · ');
+      list.append(info);
+    }
     for (const entry of run.events) if (entry.kind !== "user" && !["run/started", "run/completed", "run/status", "request/context"].includes(entry.type)) appendEntry(list, entry, labels, approvalEndpoint);
     details.append(list);
     host.append(details);

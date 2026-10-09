@@ -51,7 +51,7 @@ export class LibraryStore extends IdbStore {
   }
   async request(suffix = '', options = {}) {
     const response = await fetch(`/api/library${suffix}`, {
-      signal: AbortSignal.timeout(45000), ...options, headers: { 'X-DailyDesk-Request': 'library', ...(this.directory ? { 'X-DailyDesk-Library': encodeURIComponent(this.directory) } : {}), ...options.headers },
+      signal: AbortSignal.timeout(45000), ...options, headers: { 'X-DSHPlugin-RabbitHole-Request': 'library', ...(this.directory ? { 'X-DSHPlugin-RabbitHole-Library': encodeURIComponent(this.directory) } : {}), ...options.headers },
     });
     return readJsonResponse(response);
   }

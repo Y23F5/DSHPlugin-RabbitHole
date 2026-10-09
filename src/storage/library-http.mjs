@@ -31,9 +31,9 @@ export function createLibraryHandler(library, metadata = {}) {
     const reply = (status, data) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(data)); };
     try {
       // The server's Host/Origin gate plus a non-simple header block cross-site writes.
-      if (req.method !== 'GET' && req.headers['x-dailydesk-request'] !== 'library') throw new LibraryError('此请求未从阅读界面发起。', 403);
+      if (req.method !== 'GET' && req.headers['x-dshplugin-rabbithole-request'] !== 'library') throw new LibraryError('此请求未从阅读界面发起。', 403);
       const parts = url.pathname.split('/').slice(3).map(decodeURIComponent);
-      if(parts[0]!=='config'&&req.headers['x-dailydesk-library']&&decodeURIComponent(req.headers['x-dailydesk-library'])!==library.root)throw new LibraryError('保存目录已在另一窗口改变，请重新载入；当前草稿继续保留。',409);
+      if(parts[0]!=='config'&&req.headers['x-dshplugin-rabbithole-library']&&decodeURIComponent(req.headers['x-dshplugin-rabbithole-library'])!==library.root)throw new LibraryError('保存目录已在另一窗口改变，请重新载入；当前草稿继续保留。',409);
       if (req.method === 'GET' && parts[0] === 'config') reply(200, { directory: library.root, format: 1, ...metadata });
       else if (req.method === 'POST' && parts[0] === 'config') {
         const body = JSON.parse((await readBody(req, 256 * 1024)).toString('utf8'));

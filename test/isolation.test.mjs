@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { dataDirectory, validatePort } from '../src/shared/identity.mjs';
 import { startSurface } from '../src/host/surface.mjs';
 import { saveSourceCanvas } from '../src/host/source.mjs';
+import { ReadingLibrary } from '../src/storage/reading-library.mjs';
 
 test('identity uses independent defaults and accepts configurable ports and directory names', () => {
   const dir = dataDirectory({ env: { LOCALAPPDATA: os.tmpdir(), RABBITHOLE_DIR: 'old-library', DSH_HOME: 'old-profile', DAILYDESK_READING_PORT: '4323' } });
@@ -14,6 +15,31 @@ test('identity uses independent defaults and accepts configurable ports and dire
   assert.equal(validatePort(4323), 4323); assert.equal(validatePort(41414), 41414);
   assert.equal(dataDirectory({ directory: path.join(os.tmpdir(), 'DailyDesk', 'library') }), path.join(os.tmpdir(), 'DailyDesk', 'library'));
   assert.throws(() => validatePort(-1)); assert.throws(() => validatePort(65536));
+});
+
+test('project skills use project files and linked files stay within the authorized root', async t => {
+  const parent = await fs.mkdtemp(path.join(os.tmpdir(), 'dshplugin-cleanup-'));
+  t.after(() => fs.rm(parent, { recursive: true, force: true }));
+  const repo = path.join(parent, 'repo');
+  const outside = path.join(parent, 'outside');
+  const skill = path.join(repo, '.agents/skills/reading');
+  await fs.mkdir(skill, { recursive: true });
+  await fs.mkdir(outside);
+  await fs.mkdir(path.join(repo, '待删除_notes'));
+  await fs.writeFile(path.join(skill, 'SKILL.md'), '---\nname: Reading\ndescription: Project reading instructions\n---\nUse the project references.');
+  await fs.writeFile(path.join(repo, '待删除_notes/note.md'), 'Project notes');
+  await fs.writeFile(path.join(outside, 'note.md'), 'Outside notes');
+  await fs.symlink(path.join(repo, '待删除_notes'), path.join(repo, 'linked'), process.platform === 'win32' ? 'junction' : 'dir');
+  await fs.symlink(outside, path.join(repo, 'external'), process.platform === 'win32' ? 'junction' : 'dir');
+  const library = await new ReadingLibrary(path.join(parent, 'library')).init();
+  const project = await library.createProject({ name: 'Reading', roots: [repo] });
+  const skills = await library.skillCatalog(project.id);
+  assert.equal(skills.length, 1);
+  assert.equal(skills[0].name, 'Reading');
+  const entries = await library.projectEntries(project.id);
+  assert.ok(entries.entries.some(entry => entry.path === '待删除_notes/note.md'));
+  assert.equal((await library.readProjectFile(project.id, 'linked/note.md')).content, 'Project notes');
+  await assert.rejects(() => library.readProjectFile(project.id, 'external/note.md'), { status: 403 });
 });
 
 test('authenticated surface saves Markdown/Canvas, excludes old data and releases ownership', async t => {

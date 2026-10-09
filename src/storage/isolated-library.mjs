@@ -60,7 +60,7 @@ export class IsolatedLibrary extends ReadingLibrary {
     try {
       await this.beforeRootChange?.();
       await Promise.all([...this.queues.values()]);
-      next = await new IsolatedLibrary(resolved, { skillDirectory: this.skillDirectory }).init();
+      next = await new IsolatedLibrary(resolved).init();
       if (this.configFile) {
         await fs.mkdir(path.dirname(this.configFile), { recursive: true });
         const temporary = `${this.configFile}.${randomUUID()}.tmp`;

@@ -1,5 +1,4 @@
 import { providerFor, settingsForProvider, PROVIDERS } from "../provider/provider-registry.js";
-import { connectionMarkup, wireConnection } from './dsh-connection.js';
 import { loadSettings, saveSettings } from "./settings.js";
 import { getApiKey } from "./credential-store.js";
 import { setKeyStatus, validateKeyForPreset } from "./key-validation.js";
@@ -331,7 +330,7 @@ export function createModelSettings({
     const modelSection = preset.model_source === "catalog"
       ? `<div class="settings-section model-section"><div class="settings-row"><span class="settings-label" id="model-select-label">Model</span>${comboboxMarkup({ id: "model-select", valueId: "model-select-name", labelledBy: "model-select-label", value: currentModel, label: currentModel, title: currentModel, iconHtml: chevron })}</div></div>`
       : preset.model_source === "dsh"
-      ? `<div class="settings-section model-section dsh-model-section"><div class="settings-row">${fieldMarkup({ id: "dsh-model-id", label: "Harness model", value: currentModel, placeholder: "deepseek-flash", hint: "填写 DSH 已配置的模型 ID；Provider、凭据和工具由 DSH 负责。" })}</div><label class="field" for="dsh-provider"><span>Harness provider</span><input id="dsh-provider" value="${escapeHtml(settings.dsh_provider || "deepseek-official")}" autocomplete="off"></label><p class="field-hint">连接方式由 DailyDesk 自动选择：优先复用运行中的 DSH，其次网关，最后启动本地 DSH。</p></div>`
+      ? `<div class="settings-section model-section dsh-model-section"><div class="settings-row">${fieldMarkup({ id: "dsh-model-id", label: "Harness model", value: currentModel, placeholder: "deepseek-flash", hint: "填写 DSH 已配置的模型 ID；Provider、凭据和工具由 DSH 负责。" })}</div><label class="field" for="dsh-provider"><span>Harness provider</span><input id="dsh-provider" value="${escapeHtml(settings.dsh_provider || "deepseek-official")}" autocomplete="off"></label><p class="field-hint">模型连接使用 DSH 宿主中的 Provider 配置。</p></div>`
       : preset.id === "custom_endpoint"
         ? `<div class="settings-section model-section local-model-section"><div class="settings-row"><span class="settings-label" id="endpoint-model-label">Available models</span>${comboboxMarkup({ id: "endpoint-model", labelledBy: "endpoint-model-label", value: currentModel, label: currentModel || "Choose a model", title: currentModel, iconHtml: chevron })}</div>${fieldMarkup({ id: "endpoint-model-id", label: "Model ID", value: currentModel, placeholder: "Choose above or type a model ID", hint: "Manual IDs work even when the server does not expose a model list." })}</div>`
         : `<div class="settings-section model-section local-model-section"><div class="settings-row"><span class="settings-label" id="local-model-label">Model</span>${comboboxMarkup({ id: "local-model", labelledBy: "local-model-label", value: currentModel, label: currentModel, title: currentModel, iconHtml: chevron })}</div><small class="field-hint">${escapeHtml(localDiscoveryCopy())}${localDiscovery === "error" || localDiscovery === "empty" ? ` <${BUTTON_TAG} id="local-model-setup" class="settings-text-action" type="button">Set up Local</button>` : ""}</small></div>`;
@@ -348,7 +347,6 @@ export function createModelSettings({
     setConditionalHtml(host, `${recoveryStatus ? `<div class="settings-section settings-recovery" role="status">${escapeHtml(recoveryStatus)}</div>` : ""}
       ${preset.id === "custom_endpoint" ? `${endpointSection}<label class="field" for="endpoint-protocol"><span>API protocol</span><select id="endpoint-protocol">${[["openai", "OpenAI Chat Completions"], ["anthropic", "Anthropic Messages"], ["gemini", "Gemini generateContent"]].map(([value, label]) => `<option value="${value}"${(settings.endpoint_protocol || "openai") === value ? " selected" : ""}>${label}</option>`).join("")}</select></label>${keySection}<div class="settings-row"><${BUTTON_TAG} id="endpoint-fetch-models" class="web-primary" type="button"${endpointDiscovery === "loading" ? " disabled" : ""}>${endpointDiscovery === "loading" ? "Fetching models…" : "Fetch models"}</button>${endpointDiscovery === "loading" ? `<${BUTTON_TAG} id="endpoint-cancel-models" class="settings-text-action" type="button">Cancel</button>` : ""}</div>${modelSection}` : `${modelSection}${keySection}${endpointSection}`}
       ${transcriptionSection}
-      ${preset.id === 'dsh' ? connectionMarkup() : ''}
       ${purpose !== "settings" || !getGenerationSetupStatus(settings).ready ? `<div class="settings-section settings-complete-section"><${BUTTON_TAG} id="complete-model-setup" class="web-primary" type="button"${localModelReady && endpointReady ? "" : " disabled"}>Finish setup</button></div>` : ""}`);
     restoreTextBeingTyped(host, typed);
     wireConditionalSections(host);
@@ -693,7 +691,6 @@ export function createModelSettings({
     });
       host.querySelector("#dsh-model-id")?.addEventListener("change", (event) => applyPatch({ model: event.target.value.trim() || "deepseek-flash" }));
       host.querySelector("#dsh-provider")?.addEventListener("change", (event) => applyPatch({ dsh_provider: event.target.value.trim() || "deepseek-official" }));
-    wireConnection(host,applyPatch);
     host.querySelector("#local-model-setup")?.addEventListener("click", launchOllamaRecovery);
     host.querySelector("#local-vision-retry")?.addEventListener("click", () => void runLocalDiscovery());
     host.querySelector("#complete-model-setup")?.addEventListener("click", () => void completeSetup());
@@ -1009,7 +1006,7 @@ export function createModelSettings({
     } else if (preset.id === "subscriptions") {
       if (bridgeView !== "stream" || !bridgeModelsFor(selectedBridgeAgent(settings)).some((model) => model.id === settings.model)) return;
     } else if (preset.model_source === "dsh") {
-      // DSH resolves its adapter and credentials in the DailyDesk-owned runtime;
+      // DSH resolves its adapter and credentials in the host runtime;
       // it has no browser-side model discovery step to repeat here.
     } else if (localDiscovery !== "success" || !localModels?.some((model) => model.id === settings.model)) return;
     markGenerationSetupComplete();

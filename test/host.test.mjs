@@ -44,7 +44,7 @@ test('official host: selection, project read, thought/tool/body streaming, repla
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'dshplugin-rabbithole-host-'));
   const ctx = new Context();
   t.after(async () => { await ctx.fiber.dispose(); await fs.rm(root, { recursive: true, force: true }); });
-  await ctx.plugin(WebServer, { host: '127.0.0.1', port: 0 });
+  await ctx.plugin(WebServer, { host: '0.0.0.0', port: 0 });
   await ctx.plugin(Sessions);
   await ctx.plugin(Llm);
   await ctx.plugin(Projections);
@@ -69,7 +69,7 @@ test('official host: selection, project read, thought/tool/body streaming, repla
   const cookie = connected.headers.get('set-cookie').split(';')[0];
   const rows = await (await fetch(`${target}/api/library`, { headers: { Cookie: cookie } })).json();
   assert.equal(rows.length, 1);
-  const headers = { Cookie: cookie, 'Content-Type': 'application/json', 'X-DailyDesk-Request': 'library' };
+  const headers = { Cookie: cookie, 'Content-Type': 'application/json', 'X-DSHPlugin-RabbitHole-Request': 'library' };
   const repo = path.join(root, 'fixture-project'); await fs.mkdir(repo); await fs.writeFile(path.join(repo, 'fixture.md'), 'Only read this fixture.');
   const projectResponse = await fetch(`${target}/api/library/projects`, { method: 'POST', headers, body: JSON.stringify({ name: '受控项目', roots: [repo] }) });
   const project = await projectResponse.json(); assert.equal(projectResponse.status, 201, JSON.stringify(project));
@@ -79,7 +79,7 @@ test('official host: selection, project read, thought/tool/body streaming, repla
   const redirected = await fetch(branchLaunch.url, { redirect: 'manual' });
   assert.match(redirected.headers.get('location'), /dshplugin_run=question$/);
   const body = { run_id: 'controlled-run', prompt: '请读 fixture.md。', project_id: project.id, provider: 'fixture', model: 'fixture', node_id: 'question' };
-  const run = async () => (await (await fetch(`${target}/api/harness/run`, { method: 'POST', headers: { ...headers, 'X-DailyDesk-Request': 'harness' }, body: JSON.stringify(body) })).text()).split('\n').filter(line => line.startsWith('data: ')).map(line => JSON.parse(line.slice(6)));
+  const run = async () => (await (await fetch(`${target}/api/harness/run`, { method: 'POST', headers: { ...headers, 'X-DSHPlugin-RabbitHole-Request': 'harness' }, body: JSON.stringify(body) })).text()).split('\n').filter(line => line.startsWith('data: ')).map(line => JSON.parse(line.slice(6)));
   const events = await run();
   assert.ok(events.some(row => row.type === 'assistant/reasoning/delta'), JSON.stringify(events));
   assert.ok(events.some(row => row.type === 'tool/call/delta'));

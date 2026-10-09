@@ -56,23 +56,6 @@ export class OpenAICompatibleProvider {
     return this.reasoningEffort ? { reasoning_effort: this.reasoningEffort } : {};
   }
 
-  learningMetadata(kind, context) {
-    if (context?.project_context?.learning_enabled === false) return {};
-    // Only the local subscription bridge receives the learning adapter protocol.
-    const url = new URL(this.baseUrl);
-    if (!["127.0.0.1", "localhost", "[::1]"].includes(url.hostname) || !/^(codex|claude)\//.test(this.model)) return {};
-    return { dailydesk_learning: {
-      kind, hole_id: context?.hole_id, node_id: context?.node_id,
-      parent_id: context?.parent_id, question: context?.question || context?.selected_text || "请解释所选内容。",
-      selected_text: context?.selected_text || "",
-    } };
-  }
-
-  projectMetadata() {
-    const url = new URL(this.baseUrl);
-    return ["127.0.0.1", "localhost"].includes(url.hostname) && /^(codex|claude)\//.test(this.model) ? { project_id: this.projectId } : {};
-  }
-
   async *authorDocument(source, signal) {
     const body = {
       model: this.model,
@@ -93,13 +76,11 @@ export class OpenAICompatibleProvider {
     }));
   }
 
-  /** @param {{question?: string, learning?: any}} [input] @param {AbortSignal} [signal] */
-  async *authorExplainer({ question, learning, project_context } = {}, signal) {
+  /** @param {{question?: string, project_context?: any}} [input] @param {AbortSignal} [signal] */
+  async *authorExplainer({ question, project_context } = {}, signal) {
     const body = {
       model: this.model,
       messages: withProjectInstructions(buildExplainerMessages({ question }), project_context, { includeFiles: true }),
-      ...this.learningMetadata("explainer", { ...learning, question, project_context }),
-      ...this.projectMetadata(),
       stream: true,
       temperature: 0.35,
       ...this.tuning(),
@@ -121,8 +102,6 @@ export class OpenAICompatibleProvider {
     const body = {
       model: this.model,
       messages: withProjectInstructions(buildAnswerMessages(context), context?.project_context),
-      ...this.learningMetadata("branch", context),
-      ...this.projectMetadata(),
       stream: true,
       temperature: 0.4,
       ...this.tuning(),
@@ -276,7 +255,7 @@ async function executeProjectTool(name, args, allowed) {
       : name === "project_search" ? `projects/${encodeURIComponent(projectId)}/search?q=${encodeURIComponent(String(args.query || ""))}&limit=${Math.max(1, Math.min(100, Number(args.limit) || 30))}`
         : name === "project_read" ? `projects/${encodeURIComponent(projectId)}/read?root=${Math.max(0, Number(args.root) || 0)}&path=${encodeURIComponent(String(args.path || ""))}` : "";
   if (!query) throw new Error(`Unknown project tool: ${name}`);
-  const response = await fetch(`/api/library/${query}`, { headers: { "X-DailyDesk-Request": "library" }, signal: AbortSignal.timeout(30000) });
+  const response = await fetch(`/api/library/${query}`, { headers: { "X-DSHPlugin-RabbitHole-Request": "library" }, signal: AbortSignal.timeout(30000) });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || `Project tool failed (${response.status}).`);
   return data;

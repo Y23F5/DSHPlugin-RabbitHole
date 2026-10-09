@@ -8,9 +8,11 @@ import { promisify } from 'node:util';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const runtime = path.join(root, '.runtime');
 const sourceArg = process.argv.indexOf('--dsh-source');
+let workspaceConfig = {};
+try { workspaceConfig = JSON.parse(await fs.readFile(path.join(runtime, 'workspace-config.json'), 'utf8')); }
+catch (error) { if (error.code !== 'ENOENT') throw error; }
 const candidates = [
-  sourceArg >= 0 ? process.argv[sourceArg + 1] : process.env.DSH_SOURCE_DIR,
-  path.resolve(root, '../../Code-github/deepseek-harness'),
+  sourceArg >= 0 ? process.argv[sourceArg + 1] : process.env.DSH_SOURCE_DIR || workspaceConfig.dshSource,
 ].filter(Boolean);
 let cli;
 for (const source of candidates) {
@@ -20,16 +22,24 @@ for (const source of candidates) {
 if (!cli) throw new Error('请通过 DSH_SOURCE_DIR 或 --dsh-source 指定本机 DeepSeek Harness 源码目录。');
 
 process.title = 'DSHPlugin-RabbitHole Workspace';
-process.env.DSH_HOME = path.join(runtime, 'workspace-dsh');
-process.env.DSH_AGENTS_HOME = path.join(runtime, 'workspace-agents');
-process.env.DSHPLUGIN_RABBITHOLE_DATA_DIR = path.join(runtime, 'workspace-library');
+const profileArg = process.argv.indexOf('--profile');
+const existingProfile = profileArg >= 0 ? process.argv[profileArg + 1] : null;
+if (profileArg >= 0 && (!existingProfile || existingProfile.startsWith('--'))) throw new Error('请在 --profile 后填写已有 Web profile 名称。');
+if (!existingProfile) {
+  process.env.DSH_HOME = path.join(runtime, 'workspace-dsh');
+  process.env.DSH_AGENTS_HOME = path.join(runtime, 'workspace-agents');
+  process.env.DSHPLUGIN_RABBITHOLE_DATA_DIR = path.join(runtime, 'workspace-library');
+}
 process.env.DSH_TELEMETRY_DISABLED = '1';
 await fs.mkdir(runtime, { recursive: true });
 const execute = promisify(execFile);
 const options = { cwd: root, env: process.env, windowsHide: true, maxBuffer: 8 * 1024 * 1024 };
-const profile = 'rabbithole';
-const profileDirectory = path.join(process.env.DSH_HOME, 'profiles', profile);
+const requireDsh = createRequire(cli);
+const { resolveDshHome } = await import(pathToFileURL(requireDsh.resolve('@deepseek-ai/dsh-home-paths')));
+const profile = existingProfile || 'rabbithole';
+const profileDirectory = path.join(resolveDshHome(), 'profiles', profile);
 if (!(await fs.access(path.join(profileDirectory, 'package.json')).then(() => true, () => false))) {
+  if (existingProfile) throw new Error(`DSH profile ${profile} 尚未创建，请选择已有 Web profile。`);
   await execute(process.execPath, [cli, '--profile', profile, '--from-default-profile', 'web', '--dump-config'], options);
 }
 const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
@@ -41,7 +51,6 @@ if (installed?.version !== manifest.version) {
   await execute(process.execPath, [cli, 'plugin', '--profile', profile, 'add', tarball], options);
 }
 
-const requireDsh = createRequire(cli);
 const { loadLayeredEnv } = await import(pathToFileURL(requireDsh.resolve('@deepseek-ai/dsh-app-boot')));
 const { runProfile } = await import(pathToFileURL(path.join(path.dirname(cli), 'profile-boot.js')));
 const portArg = process.argv.indexOf('--port');
@@ -53,6 +62,10 @@ if (!ctx.get('dshpluginRabbitHole')) {
   throw new Error('RabbitHole 插件加载失败，请查看上方具体错误。');
 }
 process.stdin.setEncoding('utf8');
+if (process.argv.includes('--selection-check')) {
+  const { installSelectionFixture } = await import('../test/selection-fixture.mjs');
+  await installSelectionFixture(ctx, runtime);
+}
 process.stdin.on('data', input => {
   if (input.trim() === 'stop') { process.stdin.pause(); void shutdown.shutdown(0); }
 });

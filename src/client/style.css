@@ -1,0 +1,23 @@
+.rh-dsh-question,.rh-dsh-selection,.rh-dsh-companion{--rh-bg:var(--color-bg-secondary,#202126);--rh-text:var(--color-text-primary,#ebebed);--rh-muted:var(--color-text-secondary,#a3a5ac);--rh-line:var(--color-border,#ffffff22);color:var(--rh-text);background:var(--rh-bg);font-family:inherit;font-size:14px;line-height:1.5;box-sizing:border-box}
+.rh-dsh-frame{border:0;width:100%;height:100%;display:block;flex:1;min-height:0}
+.rh-dsh-icon{display:inline-flex;color:inherit;background:transparent;border:0;cursor:pointer;padding:4px;border-radius:6px}.rh-dsh-icon:hover{background:#80808022}
+.rh-dsh-notice{padding:24px}.rh-dsh-inline-error{font-size:12px;color:#d99882;max-width:280px}
+.rh-dsh-selection{position:fixed;z-index:10000;display:flex;flex-wrap:wrap;padding:4px;border:1px solid var(--rh-line);border-radius:10px;box-shadow:0 8px 28px #0003;max-width:280px}
+.rh-dsh-selection button,.rh-dsh-question button,.rh-dsh-canvas-head button{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;background:transparent;color:inherit;font:inherit;padding:7px 10px;border-radius:7px;cursor:pointer}
+.rh-dsh-selection button:hover,.rh-dsh-question button:hover,.rh-dsh-canvas-head button:hover{background:#80808022}
+.rh-dsh-scrim{position:fixed;inset:0;z-index:10001;background:#0005;display:grid;place-items:center;padding:16px}
+.rh-dsh-question{width:min(520px,100%);max-height:90dvh;overflow:auto;padding:20px;border:1px solid var(--rh-line);border-radius:14px;box-shadow:0 20px 70px #0005;display:grid;gap:16px}
+.rh-dsh-question header,.rh-dsh-canvas-head{display:flex;align-items:center;gap:10px}.rh-dsh-question header strong{flex:1;font-size:15px;font-weight:600}
+.rh-dsh-question blockquote{margin:0;padding:10px 14px;border-left:2px solid var(--rh-muted);color:var(--rh-muted);max-height:160px;overflow:auto;white-space:pre-wrap;font-size:13px}
+.rh-dsh-question textarea{box-sizing:border-box;width:100%;background:#8080800b;border:1px solid var(--rh-line);border-radius:9px;padding:12px;color:inherit;font:inherit;line-height:1.7;resize:vertical;min-height:100px}
+.rh-dsh-question footer{display:flex;align-items:center;justify-content:space-between;gap:12px}.rh-dsh-question label{display:flex;align-items:center;gap:8px;color:var(--rh-muted);min-width:0}
+.rh-dsh-question select{font:inherit;max-width:220px;min-width:0;border:1px solid var(--rh-line);border-radius:7px;background:var(--rh-bg);color:var(--rh-text);padding:6px 8px}
+.rh-dsh-question .rh-dsh-primary{background:var(--rh-text);color:var(--rh-bg);white-space:nowrap}.rh-dsh-question .rh-dsh-primary:hover{opacity:.9;background:var(--rh-text)}
+.rh-dsh-route{color:var(--rh-muted);font-size:11px;overflow-wrap:anywhere}.rh-dsh-question p[role=alert],.rh-dsh-selection p[role=alert]{margin:0;padding:4px 8px;font-size:12px;color:#d99882}
+.rh-dsh-question button:disabled,.rh-dsh-selection button:disabled{cursor:default;opacity:.45}.rh-dsh-question :focus-visible,.rh-dsh-selection :focus-visible,.rh-dsh-companion :focus-visible{outline:2px solid #9096a8;outline-offset:2px}
+.rh-dsh-companion{position:fixed;top:52px;right:12px;bottom:12px;width:min(64vw,1000px);min-width:360px;z-index:800;pointer-events:auto;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--rh-line);border-radius:12px;box-shadow:0 16px 60px #0005;animation:rh-dsh-appear .18s ease-out}
+.rh-dsh-canvas-head{padding:10px 12px;border-bottom:1px solid var(--rh-line)}.rh-dsh-canvas-head div{flex:1;min-width:0}.rh-dsh-canvas-head strong{font-weight:600;font-size:13px}.rh-dsh-canvas-head small{display:block;font-size:11px;color:var(--rh-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rh-dsh-canvas-head button{font-size:12px;white-space:nowrap;padding:5px 8px}
+.rh-dsh-tab{width:100%;height:100%;display:flex;flex-direction:column}.rh-dsh-source-target{outline:2px solid #9096a8;outline-offset:6px;border-radius:6px}
+@keyframes rh-dsh-appear{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:translateX(0)}}
+@media(max-width:780px){.rh-dsh-companion{inset:44px 8px 8px;width:auto;min-width:0}.rh-dsh-question footer{flex-wrap:wrap}.rh-dsh-question select{max-width:180px}}
+@media(prefers-reduced-motion:reduce){.rh-dsh-companion{animation:none}}

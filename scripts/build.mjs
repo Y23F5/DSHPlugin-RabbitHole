@@ -15,7 +15,7 @@ await new Promise((resolve, reject) => {
 await fs.mkdir(new URL('../dist/', import.meta.url), { recursive: true });
 await build({
   absWorkingDir: root, entryPoints: ['src/client/index.jsx'], outfile: 'dist/client.js',
-  bundle: true, format: 'cjs', platform: 'browser', external: ['react', 'react-dom'],
+  bundle: true, format: 'cjs', platform: 'browser', external: ['react', 'react-dom'], loader: { '.css': 'text' },
   target: 'es2022', sourcemap: false,
   banner: { js: 'window.__ModuleLoader__.load({ id: "@y23f5/dshplugin-rabbithole", factory: (require) => { var module = { exports: {} }; var exports = module.exports;' },
   footer: { js: 'return module.exports; } });' },

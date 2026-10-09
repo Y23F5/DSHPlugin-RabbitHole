@@ -1,5 +1,5 @@
 /**
- * DailyDesk's stable harness event vocabulary.
+ * RabbitHole's harness event vocabulary.
  *
  * The vocabulary deliberately mirrors the useful part of DeepSeek Harness'
  * append-only session log without importing its developer-preview internals.
@@ -27,6 +27,7 @@ export const HARNESS_EVENT_TYPES = Object.freeze({
   APPROVAL_REQUEST: "approval/request",
   APPROVAL_RESULT: "approval/result",
   SKILL_ACTIVATED: "skill/activated",
+  SKILL_CONFIGURED: "skill/configured",
   FILE_READ: "file/read",
   FILE_WRITE: "file/write",
   PLAN_UPDATE: "plan/update",

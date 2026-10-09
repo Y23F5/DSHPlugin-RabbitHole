@@ -8,7 +8,7 @@ export function createHarnessHandler(runner) {
     if (req.method === 'GET' && url.pathname === '/api/harness/modes') { reply(res, 200, { modes: [{ id: 'hosted', label: '当前 DSH 宿主', available: true }] }); return true; }
     if (req.method === 'GET' && url.pathname === '/api/harness/capabilities') { reply(res, 200, { capabilities: { hosted: true, tools: true, project_readonly: true, live_stream: true } }); return true; }
     if (req.method !== 'POST' || url.pathname !== '/api/harness/run') { reply(res, 404, { error: 'Harness route not found' }); return true; }
-    if (req.headers['x-dailydesk-request'] !== 'harness') { reply(res, 403, { error: 'Request rejected' }); return true; }
+    if (req.headers['x-dshplugin-rabbithole-request'] !== 'harness') { reply(res, 403, { error: 'Request rejected' }); return true; }
     const body = await readJson(req);
     const controller = new AbortController();
     req.once('aborted', () => controller.abort());

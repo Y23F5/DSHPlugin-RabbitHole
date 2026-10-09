@@ -138,6 +138,7 @@ export function mountReadingControls({ store, controller, current, replace, flus
         'approval/request': '等待审批',
         'approval/result': '审批结果',
         'skill/activated': '启用 Skill',
+        'skill/configured': 'Skill 已加入上下文',
         'file/read': '读取文件',
         'file/write': '写入文件',
         'plan/update': '更新计划',

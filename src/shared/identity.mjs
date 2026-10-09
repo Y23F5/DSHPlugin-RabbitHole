@@ -2,7 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 export const SERVICE_NAME = 'DSHPlugin-RabbitHole';
-export const VERSION = '0.1.0-dev.5';
+export const VERSION = '0.1.0-dev.15';
 export const DEV_PORT = 45231;
 export const HOSTED_PORT = 45232;
 export function validatePort(value) {

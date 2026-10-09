@@ -6,9 +6,9 @@ import { rankedExcerpts, textSections } from '../../packages/rabbithole/src/core
 
 const TEXT_FILE_LIMIT = 16 * 1024 * 1024;
 const indexedText = entry => entry.type === 'file' && /\.(md|txt|py|js|mjs|cjs|ts|tsx|jsx|cpp|h|hpp|c|cu|glsl|yaml|yml|toml|json|csv|sh|ps1)$/i.test(entry.path) && !/(^|\/)(\.env(?:\.|$)|.*\.(pem|key)$)/i.test(entry.path);
-const skippedDirectory = name => ['.git', 'node_modules', '.dailydesk', '.venv', 'venv', '__pycache__', '.pytest_cache', 'dist', '.cache'].includes(name) || name.startsWith('待删除_');
+const skippedDirectory = name => ['.git', 'node_modules', '.dailydesk', '.venv', 'venv', '__pycache__', '.pytest_cache', 'dist', '.cache'].includes(name);
 const bulkDirectory = name => ['data', 'datasets', 'checkpoints', 'weights', 'artifacts', 'logs', '训练数据', '模型权重'].includes(name.toLowerCase());
-const sourceDirectory = name => ['src', 'source', 'scripts', 'configs', 'forgetsr_src'].includes(name);
+const sourceDirectory = name => ['src', 'source', 'scripts', 'configs'].includes(name);
 
 const digest = (text) => createHash('sha256').update(text).digest('hex');
 const json = (value) => JSON.stringify(value, null, 2) + '\n';
@@ -84,7 +84,7 @@ function citations(hole, previous = {}) {
 }
 
 export class ReadingLibrary {
-  constructor(root, { fault, configFile = null, skillDirectory = null } = {}) { this.root = path.resolve(root); this.queues = new Map(); this.fault = fault; this.projects = []; this.configFile=configFile; this.workspaceRoot=this.root; this.skillDirectory=skillDirectory; }
+  constructor(root, { fault, configFile = null } = {}) { this.root = path.resolve(root); this.queues = new Map(); this.fault = fault; this.projects = []; this.configFile=configFile; this.workspaceRoot=this.root; }
   async init() {
     if(this.configFile){try{this.root=JSON.parse(await fs.readFile(this.configFile,'utf8')).directory||this.root;}catch(error){if(error.code!=='ENOENT')throw error;}}
     await fs.mkdir(this.root, { recursive: true });
@@ -161,12 +161,6 @@ export class ReadingLibrary {
   async skillCatalog(projectId='default') {
     const project=this.getProject(projectId);const catalog=[];
     const add=async(id,file,source)=>{const content=await fs.readFile(file,'utf8');if(content.length>100000)return;const front=content.match(/^---\r?\n([\s\S]*?)\r?\n---/);const fields=front?.[1]||'';const field=name=>fields.match(new RegExp(`^${name}:\\s*(.+)$`,'m'))?.[1]?.replace(/^["']|["']$/g,'');catalog.push({id,name:field('name')||path.basename(path.dirname(file)),description:field('description')||'项目阅读辅助指令',source,content});};
-    if (this.skillDirectory) {
-      await add('jianran-learning', path.join(this.skillDirectory, 'SKILL.md'), 'DailyDesk 内置');
-      const style = await fs.readFile(path.join(this.skillDirectory, 'references/TEACHING_STYLE.md'), 'utf8');
-      catalog[0].content += '\n\n--- references/TEACHING_STYLE.md ---\n' + style;
-      catalog[0].content += '\n\nDailyDesk 当前请求已附上教学表达规则。课程理解与进度以当前问答和附上的项目交流记录为依据。项目工具提供只读查询；文件保存由应用负责。';
-    }
     for(let rootIndex=0;rootIndex<project.roots.length;rootIndex++)for(const base of ['.agents/skills','.claude/skills']){
       try{const directory=await this.resolveProjectPath(project,project.roots[rootIndex],base);for(const entry of await fs.readdir(directory,{withFileTypes:true})){if(!entry.isDirectory()||entry.isSymbolicLink())continue;try{const file=await this.resolveProjectPath(project,project.roots[rootIndex],`${base}/${entry.name}/SKILL.md`);const identity=`local:${digest(process.platform==='win32'?file.toLowerCase():file)}`;if(!catalog.some(skill=>skill.id===identity))await add(identity,file,`${project.roots[rootIndex]}/${base}`);}catch(error){if(!['ENOENT','EACCES'].includes(error.code)&&!(error instanceof LibraryError))throw error;}}}catch(error){if(!['ENOENT','EACCES'].includes(error.code)&&!(error instanceof LibraryError))throw error;}
     }
@@ -209,7 +203,6 @@ export class ReadingLibrary {
     for (const segment of segments) {
       cursor = path.join(cursor, segment);
       try {
-        if ((await fs.lstat(cursor)).isSymbolicLink()) throw new LibraryError('项目目录中的符号链接不允许访问。', 403);
         const resolved = await fs.realpath(cursor); const resolvedInside = path.relative(root, resolved);
         if (resolvedInside.startsWith('..') || path.isAbsolute(resolvedInside)) throw new LibraryError('项目目录中的重解析点不允许越出授权范围。', 403);
       }
@@ -323,7 +316,7 @@ export class ReadingLibrary {
       files.push(candidate); used += candidate.content.length;
     }
     const skills=requested.length?await this.skillCatalog(requested[0]):[];
-    return { projects: requested.map(id => this.projectSummary(this.getProject(id))), files, pinned, skipped, skills:skills.filter(skill=>skill.enabled).map(({id,name,content})=>({id,name,content:content.slice(0,24000)})), learning_enabled:skills.some(skill=>skill.id==='jianran-learning'&&skill.enabled), truncated: treeTruncated || files.length < candidates.length || skipped.length > 0, query: String(query || '') };
+    return { projects: requested.map(id => this.projectSummary(this.getProject(id))), files, pinned, skipped, skills:skills.filter(skill=>skill.enabled).map(({id,name,source,content})=>({id,name,source,content:content.slice(0,24000)})), truncated: treeTruncated || files.length < candidates.length || skipped.length > 0, query: String(query || '') };
   }
   async file(relative) {
     if (typeof relative !== 'string' || relative.includes('\\') || relative.includes(':') || relative.includes('\0') || path.isAbsolute(relative)) throw new LibraryError('文件路径无效。', 400);

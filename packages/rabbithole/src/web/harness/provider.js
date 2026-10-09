@@ -81,6 +81,7 @@ export function createHarnessProvider(provider, options = {}) {
     provider.projectId = options.projectId || provider.projectId;
     provider.runId = options.runId || provider.runId;
     provider.nodeId = options.nodeId || provider.nodeId;
+    provider.parentRunId = options.parentRunId || '';
     provider.kind = options.kind || provider.kind;
     provider.onEvent = options.onEvent || provider.onEvent;
     return provider;

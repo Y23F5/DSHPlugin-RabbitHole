@@ -4,6 +4,7 @@ import { buildExplainerMessages } from "../../core/prompts/explainer-v1.js";
 import { withProjectInstructions } from "../provider/project-prompt.js";
 import { createHarnessEvent } from "./protocol.js";
 import { ProviderError } from "../provider/errors.js";
+import { TitleSentinelParser } from "../provider/title-sentinel.js";
 
 const KNOWLEDGE_SEARCH_SYSTEM = [
   "You answer a knowledge question inside RabbitHole.",
@@ -22,9 +23,10 @@ function buildKnowledgeSearchMessages(context) {
 }
 
 export class DshBrowserProvider {
-  constructor({ mode = "auto", endpoint = "/api/harness/run", provider = "deepseek-official", model = "deepseek-flash", reasoningEffort = "", sessionId = "", projectId = "", runId = "", nodeId = "", kind = "branch", onEvent = null } = {}) {
+  constructor({ mode = "auto", endpoint = "/api/harness/run", provider = "deepseek-official", model = "deepseek-flash", reasoningEffort = "", sessionId = "", projectId = "", runId = "", nodeId = "", parentRunId = "", kind = "branch", onEvent = null } = {}) {
     this.mode = mode; this.endpoint = endpoint; this.providerName = provider; this.model = model || "deepseek-flash"; this.reasoningEffort = reasoningEffort; this.sessionId = sessionId; this.projectId = projectId; this.runId = runId; this.nodeId = nodeId; this.kind = kind; this.onEvent = onEvent;
     this.provenance = { provider: `dsh:${mode}`, model: this.model, reasoning: reasoningEffort, harness: `deepseek-${mode}` };
+    this.parentRunId = parentRunId;
   }
   capabilities() { return ["session", "agent_loop", "tools", "skills", "file_events", this.mode]; }
   async *answerBranch(context, signal) {
@@ -33,20 +35,21 @@ export class DshBrowserProvider {
       yield* this.run(buildKnowledgeSearchMessages(input), { ...input, project_context: null, knowledge_search: true }, signal);
       return;
     }
-    yield* this.run(withProjectInstructions(buildAnswerMessages(input), input.project_context), input, signal);
+    const messages = this.mode === 'hosted' ? buildAnswerMessages({ ...input, project_context: null })
+      : withProjectInstructions(buildAnswerMessages(input), input.project_context);
+    yield* this.run(messages, input, signal);
   }
-  async *authorExplainer({ question, project_context } = {}, signal) { yield* this.run(withProjectInstructions(buildExplainerMessages({ question }), project_context, { includeFiles: true }), { question, project_context }, signal); }
+  async *authorExplainer({ question, project_context } = {}, signal) { yield* this.run(this.mode === 'hosted' ? buildExplainerMessages({ question }) : withProjectInstructions(buildExplainerMessages({ question }), project_context, { includeFiles: true }), { question, project_context }, signal); }
   async *authorDocument(source, signal) { yield* this.run(buildAuthorMessages(source), source, signal); }
   async *run(messages, context, signal) {
+    this.titleParser = new TitleSentinelParser({ fallbackTitle: context?.question || context?.parent_title || '回答' });
     const formatted = typeof messages === "string" ? messages : formatMessages(messages);
     const prompt = ["You are running inside DeepSeek Harness through RabbitHole.", "Project files are read-only. Do not create, edit, delete, rename, or move files.", "Preserve the requested RabbitHole answer format.", "", formatted].join("\n");
     this.emit("user/message", { text: String(context?.question || context?.selected_text || prompt) });
     this.emit("run/status", { status: "started", kind: this.kind });
-    this.emit("request/context", { project_id: this.projectId, has_project_context: !!context?.project_context });
-    for (const skill of context?.project_context?.skills || []) this.emit("skill/activated", { skill: skill.name || skill.id, source: "project context" });
     let response;
     try {
-      response = await fetch(this.endpoint, { method: "POST", headers: { "Content-Type": "application/json", Accept: "text/event-stream", "X-DailyDesk-Request": "harness" }, body: JSON.stringify({ mode: this.mode, profile: this.mode, provider: this.providerName, model: this.model, reasoning_effort: this.reasoningEffort, session_id: this.sessionId, run_id: this.runId, node_id: this.nodeId, project_id: this.projectId, prompt, question: context?.question || context?.selected_text || '', review: context?.knowledge_search ? false : Boolean(context?.project_context), knowledge_search: context?.knowledge_search === true, project_context: context?.knowledge_search ? null : context?.project_context }), signal });
+      response = await fetch(this.endpoint, { method: "POST", headers: { "Content-Type": "application/json", Accept: "text/event-stream", "X-DSHPlugin-RabbitHole-Request": "harness" }, body: JSON.stringify({ mode: this.mode, profile: this.mode, provider: this.providerName, model: this.model, reasoning_effort: this.reasoningEffort, canvas_id: this.sessionId, run_id: this.runId, node_id: this.nodeId, parent_run_id: this.parentRunId, project_id: this.projectId, prompt, question: context?.question || context?.selected_text || '', review: context?.knowledge_search ? false : Boolean(context?.project_context), knowledge_search: context?.knowledge_search === true, project_context: context?.knowledge_search ? null : context?.project_context }), signal });
     } catch (error) {
       this.emit("run/error", { message: error?.message || String(error) });
       throw error;
@@ -71,11 +74,25 @@ export class DshBrowserProvider {
     } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
   }
   *handle(event) {
-    const normalized = createHarnessEvent(event.type, { ...event, at: event.at || new Date().toISOString(), session_id: this.sessionId || event.session_id, run_id: this.runId || event.run_id, node_id: this.nodeId || event.node_id, project_id: this.projectId || event.project_id });
+    const normalized = createHarnessEvent(event.type, { ...event, at: event.at || new Date().toISOString(), session_id: event.session_id || this.sessionId, canvas_id: this.sessionId, run_id: this.runId || event.run_id, node_id: this.nodeId || event.node_id, project_id: this.projectId || event.project_id });
     this.onEvent?.(normalized);
     if (event.type === "run/error") throw new ProviderError(event.message || event.error?.message || "DSH 执行失败。", { code: event.code || "harness_failed" });
-    if (event.type === "assistant/text/replace") yield { type: "text.replace", delta: String(event.text ?? "") };
-    if ((event.type === "assistant/message" || event.type === "assistant/text/delta" || event.type === "text") && (event.delta || event.text)) yield { type: "text", delta: event.delta || event.text };
+    if (event.type === "assistant/text/replace") {
+      this.titleParser = new TitleSentinelParser({ fallbackTitle: this.titleParser?.fallbackTitle });
+      const text = this.titleParser.push(String(event.text ?? '')) + this.titleParser.finish();
+      yield { type: 'title', title: this.titleParser.title };
+      yield { type: 'text.replace', delta: text };
+    }
+    if ((event.type === "assistant/message" || event.type === "assistant/text/delta" || event.type === "text") && (event.delta || event.text)) {
+      const text = this.titleParser.push(event.delta || event.text);
+      if (this.titleParser.title) yield { type: 'title', title: this.titleParser.title };
+      if (text) yield { type: 'text', delta: text };
+    }
+    if (event.type === 'run/completed') {
+      const text = this.titleParser.finish();
+      if (this.titleParser.title) yield { type: 'title', title: this.titleParser.title };
+      if (text) yield { type: 'text', delta: text };
+    }
   }
   emit(type, payload) {
     this.onEvent?.(createHarnessEvent(type, payload, { sessionId: this.sessionId, runId: this.runId, nodeId: this.nodeId, projectId: this.projectId }));

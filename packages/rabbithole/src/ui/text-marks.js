@@ -64,7 +64,7 @@ export function applyChildHighlights(dc, node) {
   });
   kids.forEach(function (k) {
     const a = k.origin.anchor;
-    const r = rangeFromOffsets(dc, a.offset_start, a.offset_end);
+    const r = branchRange(dc, a, k.id);
     if (!r) return;
     const note = isNoteNode(k);
     const cls =
@@ -79,7 +79,7 @@ export function applyChildHighlights(dc, node) {
 
 export function wrapInContainer(dc, anchor, childId, cls) {
   if (!dc || !anchor || dc.classList.contains("rh-pdf") || anchor.pdf || anchor.block) return;
-  const rr = rangeFromOffsets(dc, anchor.offset_start, anchor.offset_end);
+  const rr = branchRange(dc, anchor, childId);
   if (rr) {
     try {
       if (/(^|\s)mark-note(\s|$)/.test(cls)) overlayRange(rr, childId, cls);
@@ -104,7 +104,7 @@ export function syncTextOverlayMarks(root) {
       const child = nodes[childId],
         anchor = child && child.origin && child.origin.anchor;
       if (!anchor || anchor.pdf || anchor.block) continue;
-      const range = rangeFromOffsets(dc, anchor.offset_start, anchor.offset_end);
+      const range = branchRange(dc, anchor, childId);
       if (!range) continue;
       overlayRange(range, childId, marks[i].className.replace(/\s*mark-overlay\b/, ""));
     }
@@ -160,6 +160,36 @@ export function removeMarks(root, childId) {
     p.removeChild(m);
     p.normalize();
   }
+}
+
+function branchRange(container, anchor, childId) {
+  const source = nodes[childId]?.extensions?.dshplugin?.source;
+  if (!source?.quote) return rangeFromOffsets(container, anchor.offset_start, anchor.offset_end);
+  // Imported Markdown positions belong to the source document. Resolve its
+  // quote against the rendered text nodes, whose formatting has different offsets.
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  let text = '', lastBlock = null; const points = [];
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    const block = node.parentElement?.closest('p,li,h1,h2,h3,h4,h5,h6,pre,td,th,blockquote');
+    if (text && block !== lastBlock && !text.endsWith(' ')) { text += ' '; points.push(null); }
+    lastBlock = block;
+    for (let i = 0; i < node.length; i++) {
+      if (/\s/.test(node.data[i])) {
+        if (text && !text.endsWith(' ')) { text += ' '; points.push({ node, offset: i }); }
+      } else { text += node.data[i]; points.push({ node, offset: i }); }
+    }
+  }
+  const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
+  const quote = clean(source.quote); const matches = []; let cursor = 0;
+  while ((cursor = text.indexOf(quote, cursor)) >= 0) { matches.push(cursor); cursor += quote.length; }
+  const context = matches.filter(at => (!source.anchor?.prefix || clean(text.slice(0, at)).endsWith(source.anchor.prefix))
+    && (!source.anchor?.suffix || clean(text.slice(at + quote.length)).startsWith(source.anchor.suffix)));
+  const at = context.length === 1 ? context[0] : matches[source.anchor?.occurrence || 0];
+  const start = points[at], end = points[at + quote.length - 1];
+  if (!start || !end) return null;
+  const range = document.createRange(); range.setStart(start.node, start.offset); range.setEnd(end.node, end.offset + 1);
+  return range;
 }
 
 function rangeFromOffsets(container, startOff, endOff) {

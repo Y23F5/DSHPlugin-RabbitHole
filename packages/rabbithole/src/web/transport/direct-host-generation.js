@@ -135,6 +135,7 @@ export class DirectHostGeneration extends DirectHostPdf {
 
     const provider = this.provider;
     const run = this.createRun(node, node.title || "Untitled", provider);
+    await this.flushSave();
     const runProvider = this.providerForRun(provider, { node, run, kind: "explainer" });
     const project_context = this.projectContextLoader ? await this.projectContextLoader({ node, context: { question } }) : null;
     if (controller.signal.aborted) return;
@@ -194,6 +195,7 @@ export class DirectHostGeneration extends DirectHostPdf {
     // Each attempt, including a retry, gets a fresh run id. The reducer can
     // therefore reject late progress from the superseded attempt.
     const run = this.createRun(node, fallbackTitle, provider);
+    await this.flushSave();
     // Capture the provider at attempt start: provider changes affect only later
     // generations; this in-flight iterator finishes on the old provider.
     let runProvider = this.providerForRun(provider, { node, run, kind: "branch" });
@@ -221,6 +223,7 @@ export class DirectHostGeneration extends DirectHostPdf {
       delete context.attachments;
       this.dispatchProgress(nodeId, "", { emit: true });
       const retryRun = this.createRun(this.state.nodes.get(nodeId), fallbackTitle, provider);
+      await this.flushSave();
       runProvider = this.providerForRun(provider, { node: this.state.nodes.get(nodeId), run: retryRun, kind: "branch" });
       generation = runProvider.answerBranch(context, controller.signal);
       for await (const docEvent of generationDocEvents(generation, retryRun, {
@@ -299,6 +302,7 @@ export class DirectHostGeneration extends DirectHostPdf {
       projectId: this.projectId || node?.extensions?.dailydesk?.project_id || "",
       runId: run?.id,
       nodeId: node?.id,
+      parentRunId: this.state.nodes.get(node?.parent_id)?.extensions?.dailydesk?.generation?.run_id || '',
       kind,
       onEvent: (event) => this.handleHarnessEvent(event),
     });
@@ -347,6 +351,7 @@ export class DirectHostGeneration extends DirectHostPdf {
     this.abortByNode.get(nodeId)?.abort();
     this.abortByNode.set(nodeId, controller);
     const run = this.createRun({ ...node, markdown: "" }, node.title || "Untitled");
+    await this.flushSave();
     const runProvider = this.providerForRun(this.provider, { node, run, kind: "authoring" });
     const generation = runProvider.authorDocument(source, controller.signal);
     try {

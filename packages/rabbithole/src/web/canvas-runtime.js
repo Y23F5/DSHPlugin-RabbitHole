@@ -9,3 +9,8 @@ export { flushPendingSaves } from "../ui/transport-status.js";
 export { registerRendererAssetName } from "../ui/renderer.js";
 export { whenViewAnimationSettled } from "../ui/canvas/camera.js";
 export { anchorClipBounds, viewportRect as overlayViewportRect } from "../ui/overlay/anchor.js";
+import { nodes, viewAdjusted } from '../ui/core.js';
+import { diveToNode } from '../ui/canvas/camera.js';
+export function focusDshBranch(id) {
+  if (!viewAdjusted && nodes[id]) diveToNode(nodes[id]);
+}
